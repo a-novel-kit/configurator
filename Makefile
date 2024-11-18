@@ -15,7 +15,4 @@ format:
 		.
 	go run mvdan.cc/gofumpt@latest -l -w .
 
-demo:
-	go run cmd/demo/main.go
-
 PHONY: test lint format
