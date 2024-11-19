@@ -1,5 +1,5 @@
-github.com/a-novel-kit/test-utils v0.0.0-20241117035838-f6242259962f h1:WnNLnxmLtDu2dhU9wxg081sJCBkRMWZQJZ0aI9AXlXE=
-github.com/a-novel-kit/test-utils v0.0.0-20241117035838-f6242259962f/go.mod h1:SnqTjX7KvmhZ6tqU3IC6MxPfcJjXHBNL+h7x4C01kxo=
+github.com/a-novel-kit/test-utils v0.1.0 h1:rK49IVSJ3jRpj57dopRauHM4RAWrpE7Xt73QqgJWMxA=
+github.com/a-novel-kit/test-utils v0.1.0/go.mod h1:nc3ihJCD1m+TuGoWoQlVnboNsnSgqDjFyb5ZK5D+cpE=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
