@@ -5,7 +5,7 @@ go 1.23.3
 require (
 	github.com/a-novel-kit/test-utils v0.1.0
 	github.com/samber/lo v1.47.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
