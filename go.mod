@@ -3,7 +3,7 @@ module github.com/a-novel-kit/configurator
 go 1.23.3
 
 require (
-	github.com/goccy/go-yaml v1.15.15
+	github.com/goccy/go-yaml v1.15.16
 	github.com/stretchr/testify v1.10.0
 )
 
