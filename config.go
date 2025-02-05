@@ -1,10 +1,23 @@
 package configurator
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
-
-	"github.com/goccy/go-yaml"
 )
+
+// LoaderConfig sets a file loader.
+type LoaderConfig struct {
+	// Deserializer used to unmarshal the file content. Defaults to json.Unmarshal.
+	Deserializer func(data []byte, dst any) error
+
+	// If true, env variable declarations are automatically interpolated with their
+	// actual value from the environment.
+	ExpandEnv bool
+
+	// The current environment. Uses the value in "ENV" variable by default.
+	Env string
+}
 
 // ConfigFile represents an embedded .yaml file, that holds the configuration object.
 type ConfigFile struct {
@@ -21,26 +34,55 @@ func NewConfig(env string, file []byte) ConfigFile {
 	return ConfigFile{file, env}
 }
 
-var ENV = os.Getenv("ENV")
+// Loader is an interface used to load configuration files using environment information.
+type Loader[T any] struct {
+	config LoaderConfig
+}
 
-// LoadConfig loads the configuration object from the provided files, in order. Files are automatically filtered
-// using their environment property, and the current ENV value.
-func LoadConfig[Cfg any](files ...ConfigFile) *Cfg {
+func (loader *Loader[T]) Load(files ...ConfigFile) (T, error) {
 	// The final output, resulting from merging every file together.
-	var out Cfg
+	var out T
 
 	for _, file := range files {
 		// Ensure the file can be loaded.
-		if file.env == ENV || file.env == "" {
-			// Allow yaml configuration to import values from their environment.
-			expanded := os.ExpandEnv(string(file.file))
-			// Assign the fields in the file to the output object. Missing fields will not be replaced, allowing
-			// config files to be merged.
-			if err := yaml.Unmarshal([]byte(expanded), &out); err != nil {
-				panic(err)
-			}
+		if file.env != loader.config.Env && file.env != "" {
+			continue
+		}
+
+		// Interpolate environment variables with their actual value.
+		data := file.file
+		if loader.config.ExpandEnv {
+			data = []byte(os.ExpandEnv(string(file.file)))
+		}
+
+		// Assign the fields in the file to the output object. Missing fields will not be replaced, allowing
+		// config files to be merged.
+		if err := loader.config.Deserializer(data, &out); err != nil {
+			return out, fmt.Errorf("(Loader.Load) unmarshal file: %w", err)
 		}
 	}
 
-	return &out
+	return out, nil
+}
+
+func (loader *Loader[T]) MustLoad(files ...ConfigFile) T {
+	out, err := loader.Load(files...)
+	if err != nil {
+		panic(err)
+	}
+
+	return out
+}
+
+// NewLoader creates a new Loader object.
+func NewLoader[T any](config LoaderConfig) *Loader[T] {
+	if config.Deserializer == nil {
+		config.Deserializer = json.Unmarshal
+	}
+
+	if config.Env == "" {
+		config.Env = os.Getenv("ENV")
+	}
+
+	return &Loader[T]{config}
 }

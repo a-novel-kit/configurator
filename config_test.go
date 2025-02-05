@@ -1,79 +1,174 @@
 package configurator_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/a-novel-kit/configurator"
 )
 
-func TestLoadConfig(t *testing.T) {
-	configFiles := map[string][]byte{
-		"item1":     []byte("item1: foo"),
-		"item1Alt":  []byte("item1: qux"),
-		"item2":     []byte("item2: bar"),
-		"bothItems": []byte("item1: one\nitem2: two"),
+func TestLoader(t *testing.T) {
+	defer os.Setenv("ENV", os.Getenv("ENV"))
+	require.NoError(t, os.Setenv("ENV", "test"))
+	require.NoError(t, os.Setenv("VALUE", "tmp"))
+
+	jsonData := [][]byte{
+		[]byte(`{"key-1": "value-1", "key-2": "value-2"}`),
+		[]byte(`{"key-2": "other-value-2", "key-3": "other-value-3"}`),
+		[]byte(`{"key-4": "value-4"}`),
 	}
 
-	type config struct {
-		Item1 string `yaml:"item1"`
-		Item2 string `yaml:"item2"`
+	yanlData := [][]byte{
+		[]byte("key-1: value-1\nkey-2: value-2"),
+		[]byte("key-2: other-value-2\nkey-3: other-value-3"),
+		[]byte("key-4: value-4"),
 	}
+
+	withEnv := []byte(`{"key-1": "${VALUE}", "key-2": "value-2"}`)
 
 	testCases := []struct {
 		name string
 
-		env   string
-		files []configurator.ConfigFile
+		config configurator.LoaderConfig
+		files  []configurator.ConfigFile
 
-		expect config
+		expect any
 	}{
 		{
-			name: "Target",
-			env:  "test",
-			files: []configurator.ConfigFile{
-				configurator.NewConfig("", configFiles["bothItems"]),
-				// Override field in first entry.
-				configurator.NewConfig("test", configFiles["item1"]),
-				// Ignored.
-				configurator.NewConfig("foo", configFiles["item1Alt"]),
-			},
-			expect: config{
-				Item1: "foo",
-				Item2: "two",
-			},
-		},
+			name: "FilterENV",
 
-		{
-			name: "NoDefaultValue",
-			env:  "test",
+			config: configurator.LoaderConfig{},
+
 			files: []configurator.ConfigFile{
-				configurator.NewConfig("test", configFiles["item1"]),
+				configurator.NewConfig("foo", jsonData[0]),
+				configurator.NewConfig("test", jsonData[1]),
+				configurator.NewConfig("bar", jsonData[2]),
 			},
-			expect: config{Item1: "foo"},
+
+			expect: map[string]any{
+				"key-2": "other-value-2",
+				"key-3": "other-value-3",
+			},
 		},
 		{
-			name: "FileOrderMatters",
-			env:  "test",
+			name: "FilterENV/NotFound",
+
+			config: configurator.LoaderConfig{},
+
 			files: []configurator.ConfigFile{
-				configurator.NewConfig("test", configFiles["item1"]),
-				configurator.NewConfig("", configFiles["bothItems"]),
+				configurator.NewConfig("foo", jsonData[0]),
+				configurator.NewConfig("qux", jsonData[1]),
+				configurator.NewConfig("bar", jsonData[2]),
 			},
-			expect: config{
-				Item1: "one",
-				Item2: "two",
+
+			expect: map[string]any(nil),
+		},
+		{
+			name: "FilterENV/DefaultENV",
+
+			config: configurator.LoaderConfig{},
+
+			files: []configurator.ConfigFile{
+				configurator.NewConfig("", jsonData[0]),
+				configurator.NewConfig("test", jsonData[1]),
+				configurator.NewConfig("bar", jsonData[2]),
+			},
+
+			expect: map[string]any{
+				"key-1": "value-1",
+				"key-2": "other-value-2",
+				"key-3": "other-value-3",
+			},
+		},
+		{
+			name: "FilterENV/DefaultENV/OrderMatters",
+
+			config: configurator.LoaderConfig{},
+
+			files: []configurator.ConfigFile{
+				configurator.NewConfig("test", jsonData[1]),
+				configurator.NewConfig("", jsonData[0]),
+				configurator.NewConfig("bar", jsonData[2]),
+			},
+
+			expect: map[string]any{
+				"key-1": "value-1",
+				"key-2": "value-2",
+				"key-3": "other-value-3",
+			},
+		},
+		{
+			name: "OverrideEnv",
+
+			config: configurator.LoaderConfig{Env: "foo"},
+
+			files: []configurator.ConfigFile{
+				configurator.NewConfig("foo", jsonData[0]),
+				configurator.NewConfig("test", jsonData[1]),
+				configurator.NewConfig("bar", jsonData[2]),
+			},
+
+			expect: map[string]any{
+				"key-1": "value-1",
+				"key-2": "value-2",
+			},
+		},
+		{
+			name: "CustomDeserializer",
+
+			config: configurator.LoaderConfig{Deserializer: yaml.Unmarshal},
+
+			files: []configurator.ConfigFile{
+				configurator.NewConfig("foo", yanlData[0]),
+				configurator.NewConfig("test", yanlData[1]),
+				configurator.NewConfig("bar", yanlData[2]),
+			},
+
+			expect: map[string]any{
+				"key-2": "other-value-2",
+				"key-3": "other-value-3",
+			},
+		},
+		{
+			name: "ExpandENV/False",
+
+			config: configurator.LoaderConfig{},
+
+			files: []configurator.ConfigFile{
+				configurator.NewConfig("", withEnv),
+			},
+
+			expect: map[string]any{
+				"key-1": "${VALUE}",
+				"key-2": "value-2",
+			},
+		},
+		{
+			name: "ExpandENV/True",
+
+			config: configurator.LoaderConfig{ExpandEnv: true},
+
+			files: []configurator.ConfigFile{
+				configurator.NewConfig("", withEnv),
+			},
+
+			expect: map[string]any{
+				"key-1": "tmp",
+				"key-2": "value-2",
 			},
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			configurator.ENV = tc.env
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			loader := configurator.NewLoader[map[string]any](testCase.config)
 
-			cfg := configurator.LoadConfig[config](tc.files...)
-
-			require.Equal(t, tc.expect, *cfg)
+			data, err := loader.Load(testCase.files...)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expect, data)
 		})
 	}
 }
