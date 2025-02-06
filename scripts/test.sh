@@ -1,6 +1,6 @@
 #!/bin/bash
 
-COMPOSE_FILE="docker-compose.test.yaml"
+KUBE_FILE="pod.test.yaml"
 TEST_TOOL_PKG="gotest.tools/gotestsum@latest"
 
 # First, we set up a temporary directory to receive the coverage (binary)files...
@@ -10,12 +10,12 @@ trap 'rm -rf -- "$GOCOVERTMPDIR"' EXIT
 # Ensure containers are properly shut down when the program exits abnormally.
 int_handler()
 {
-    docker compose -f ${COMPOSE_FILE} down
+    podman kube down ${KUBE_FILE}
 }
 trap int_handler INT
 
 # Setup test containers.
-docker compose -f ${COMPOSE_FILE} up -d
+podman play kube ${KUBE_FILE}
 
 export PORT=8080
 export DSN="postgres://test:test@localhost:5432/test?sslmode=disable"
@@ -36,4 +36,4 @@ go tool cover -html=cover.out -o=cover.html
 go tool cover -func=cover.out -o=cover.out
 
 # Normal execution: containers are shut down.
-docker compose -f ${COMPOSE_FILE} down
+podman kube down ${KUBE_FILE}
