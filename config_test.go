@@ -1,7 +1,6 @@
 package configurator_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,10 +9,9 @@ import (
 	"github.com/a-novel-kit/configurator"
 )
 
-func TestLoader(t *testing.T) {
-	defer os.Setenv("ENV", os.Getenv("ENV"))
-	require.NoError(t, os.Setenv("ENV", "test"))
-	require.NoError(t, os.Setenv("VALUE", "tmp"))
+func TestLoader(t *testing.T) { //nolint:tparallel
+	t.Setenv("ENV", "test")
+	t.Setenv("VALUE", "tmp")
 
 	jsonData := [][]byte{
 		[]byte(`{"key-1": "value-1", "key-2": "value-2"}`),
@@ -164,6 +162,8 @@ func TestLoader(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			loader := configurator.NewLoader[map[string]any](testCase.config)
 
 			data, err := loader.Load(testCase.files...)
