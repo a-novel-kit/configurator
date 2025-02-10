@@ -16,20 +16,6 @@ export default defineUserConfig({
         link: "/",
         icon: "material-symbols:home-outline-rounded",
       },
-      {
-        text: "Contexts",
-        link: "/supercontext/",
-        icon: "material-symbols:contextual-token-outline-rounded",
-        collapsible: false,
-        expanded: true,
-        children: [
-          {
-            text: "PostgreSQL (Bun)",
-            link: "/supercontext/postgres_bun",
-            icon: "devicon-plain:postgresql-wordmark",
-          },
-        ],
-      },
     ],
   }),
 
