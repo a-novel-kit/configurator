@@ -11,9 +11,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/a-novel-kit/configurator/chans"
 )
 
-func readLines(in []byte, out chan string) int {
+// Read the content of the input. Each time a new line is encountered, send the current line to the channel output
+// and start reading the next line. Returns the number of bytes read.
+func readLines(in []byte, out chan<- string) int {
 	var read int
 
 	for i, c := range in {
@@ -27,6 +31,8 @@ func readLines(in []byte, out chan string) int {
 	return read
 }
 
+// MonkeyPatchStderr replaces stderr with a pipe. Returns the read end of the pipe, a function to restore stderr and an
+// error if something went wrong.
 func MonkeyPatchStderr() (*os.File, func(), error) {
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -39,13 +45,15 @@ func MonkeyPatchStderr() (*os.File, func(), error) {
 	return r, func() { os.Stderr = stderr }, nil
 }
 
-func CaptureSTD(file *os.File) (chan string, func() error, error) {
+// CaptureSTD listen for new additions to the input file, and sends them to a channel. Returns the channel, a function
+// to close the channel and an error if something went wrong.
+func CaptureSTD(file *os.File) (*chans.MultiChan[string], func() error, error) {
 	var (
 		err error
 		n   int
 	)
 
-	outC := make(chan string)
+	output := chans.NewMultiChan[string]()
 
 	// Cursor used to read lines.
 	cursor := 0
@@ -61,9 +69,9 @@ func CaptureSTD(file *os.File) (chan string, func() error, error) {
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					err = nil
-					cursor += readLines(logs[cursor:], outC)
+					cursor += readLines(logs[cursor:], output.Chan())
 					// Read the remaining part of the logs.
-					outC <- string(logs[cursor:])
+					output.Send(string(logs[cursor:]))
 				} else {
 					err = fmt.Errorf("read logs: %w", err)
 				}
@@ -76,17 +84,18 @@ func CaptureSTD(file *os.File) (chan string, func() error, error) {
 				logs = append(logs, 0)[:len(logs)]
 			}
 
-			cursor += readLines(logs[cursor:], outC)
+			cursor += readLines(logs[cursor:], output.Chan())
 		}
 	}()
 
-	return outC, func() error {
-		close(outC)
+	return output, func() error {
+		output.Close()
 
 		return err
 	}, nil
 }
 
+// RequireCloser requires the cleanup function returned by CaptureSTD to succeed.
 func RequireCloser(t *testing.T, closer func() error) {
 	t.Helper()
 	require.NoError(t, closer())
@@ -94,8 +103,9 @@ func RequireCloser(t *testing.T, closer func() error) {
 
 type LogCaptureFN func(log string) bool
 
-func WaitForLog(logs chan string, capture LogCaptureFN, timeout time.Duration) func() (string, error) {
+func WaitForLog(logs *chans.MultiChan[string], capture LogCaptureFN, timeout time.Duration) func() (string, error) {
 	timer := time.NewTimer(timeout)
+	listener := logs.Register()
 
 	var (
 		output string
@@ -114,9 +124,9 @@ func WaitForLog(logs chan string, capture LogCaptureFN, timeout time.Duration) f
 				err = errors.New("timeout")
 
 				return
-			case log, ok := <-logs:
+			case log, ok := <-listener:
 				if !ok {
-					err = errors.New("log channel closed")
+					err = errors.New("channel closed")
 
 					return
 				}
@@ -132,6 +142,7 @@ func WaitForLog(logs chan string, capture LogCaptureFN, timeout time.Duration) f
 
 	return func() (string, error) {
 		wg.Wait()
+		logs.Unregister(listener)
 
 		return output, err
 	}
