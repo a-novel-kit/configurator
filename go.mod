@@ -1,6 +1,6 @@
 module github.com/a-novel-kit/configurator
 
-go 1.24.0
+go 1.24.1
 
 require (
 	github.com/samber/lo v1.49.1
