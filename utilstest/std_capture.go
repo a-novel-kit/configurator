@@ -15,6 +15,8 @@ import (
 	"github.com/a-novel-kit/configurator/chans"
 )
 
+const captureLogsSize = 512
+
 // Read the content of the input. Each time a new line is encountered, send the current line to the channel output
 // and start reading the next line. Returns the number of bytes read.
 func readLines(in []byte, out chan<- string) int {
@@ -45,8 +47,8 @@ func MonkeyPatchStderr() (*os.File, func(), error) {
 	return r, func() { os.Stderr = stderr }, nil
 }
 
-// CaptureSTD listen for new additions to the input file, and sends them to a channel. Returns the channel, a function
-// to close the channel and an error if something went wrong.
+// CaptureSTD forwards push to the output into a listening channel.
+// It returns a function to close the listening channel. An error is returned if initialization failed.
 func CaptureSTD(file *os.File) (*chans.MultiChan[string], func() error, error) {
 	var (
 		err error
@@ -59,7 +61,7 @@ func CaptureSTD(file *os.File) (*chans.MultiChan[string], func() error, error) {
 	cursor := 0
 
 	go func() {
-		logs := make([]byte, 0, 512)
+		logs := make([]byte, 0, captureLogsSize)
 
 		for {
 			// Read next entry from the file.

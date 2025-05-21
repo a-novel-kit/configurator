@@ -19,8 +19,18 @@ func printDepsGraph[Mod comparable](deps map[Mod]map[Mod]bool) string {
 	return output
 }
 
-// ResolveDependants takes a list of modules, and resolves their dependencies linearly. It breaks when a circular
-// dependency is detected.
+// ResolveDependants unwraps a flat list of dependencies, given a map of interdependent modules. It also prevents
+// circular dependencies.
+//
+// E.g.:
+//
+//	mod1 has dep1 and dep2
+//	mod2 has dep3 and inherited from mod1
+//
+// The algorithm will resolve the following dependencies:
+//
+//	mod1 -> dep1, dep2
+//	mod2 -> dep3, dep1, dep2
 func ResolveDependants[Mod comparable, Deps any](mods map[Mod][]Deps, deps map[Mod][]Mod) (map[Mod][]Deps, error) {
 	// https://dnaeon.github.io/dependency-graph-resolution-algorithm-in-go/
 	// Convert dependencies to a map. The algorithm performs better using maps behavior.
